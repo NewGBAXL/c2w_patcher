@@ -21,7 +21,8 @@ static const uint8_t imghdr[4] = { 0xEF, 0xA2, 0x82, 0xD9 };
 static const uint8_t elfhdr[4] = { 0x7F, 0x45, 0x4C, 0x46 };
 //patch for LT_COMPAT_MEMCTRL_STATE (toggles between 3x and 5x ppc multiplier)
 static const uint8_t memctrl_ori[8]   = { 0xE3, 0x82, 0x20, 0x20, 0xE5, 0x84, 0x25, 0xB0 };
-static const uint8_t memctrl_patch[8] = { 0xE3, 0xC2, 0x20, 0x20, 0xE5, 0x84, 0x25, 0xB0 };
+static const uint8_t memctrl_patch_4x[8] = { 0xE3, 0xA2, 0x20, 0x20, 0xE5, 0x84, 0x25, 0xB0 };
+static const uint8_t memctrl_patch_5x[8] = { 0xE3, 0xC2, 0x20, 0x20, 0xE5, 0x84, 0x25, 0xB0 };
 //patch for LT_SYSPROT (unlocks ppc multiplier)
 static const uint8_t sysprot_ori[8]   = { 0xE3, 0x83, 0x30, 0x99, 0xE5, 0x81, 0x35, 0x14 };
 static const uint8_t sysprot_patch[8] = { 0xE3, 0x83, 0x30, 0x9D, 0xE5, 0x81, 0x35, 0x14 };
@@ -31,6 +32,12 @@ static const uint8_t iop2x_patch[8] = { 0xE2, 0x8D, 0xD0, 0x10, 0xE8, 0xBD, 0x8F
 
 static bool confirm = true;
 static bool doIOP2Xpatch = false;
+static unsigned char clockSpeed = 5;
+//1
+//2 GameCube
+//3 Wii
+//4
+//5 Wii U
 
 static void waitforenter(void)
 {
@@ -53,6 +60,7 @@ static void printusage(void)
 	puts("Usage: c2w_patcher <-nc> <-iop2x>");
 	puts("-nc - Dont wait for enter press on error/exit");
 	puts("-iop2x - Experimental, set bus and ARM clock to WiiU speed as well, only use this if you know what you're doing");
+	puts("-clkspd <Clock Speed> - Set clock speed to 5 (Wii U Default), 4, or 3 (Wii Default, no change");
 	waitforenter();
 }
 
@@ -66,7 +74,14 @@ int main(int argc, char *argv[])
 			confirm = false;
 		if(memcmp(argv[argPos],"-iop2x",6) == 0)
 			doIOP2Xpatch = true;
+		if(memcmp(argv[argPos],"-clkspd",7) == 0)
+		{
+			clkspd = (unsigned char)atoi(argv[++argPos]);
+			if (clkspd < 3 || clkspd > 5)
+				clkspd = 5;
+		}
 	}
+
 	//first get the ancast key thats required
 	FILE *f = fopen("starbuck_key.txt","rb");
 	if(!f)
@@ -137,7 +152,11 @@ int main(int argc, char *argv[])
 		if(memcmp(decbuf+i,memctrl_ori,sizeof(memctrl_ori)) == 0)
 		{
 			printf("Patched LT_COMPAT_MEMCTRL_STATE at %x\n", i);
-			memcpy(decbuf+i,memctrl_patch,sizeof(memctrl_patch));
+			printf("Using %dx clock multiplier\n", clkspd);
+			if (clkspd == 4)
+				memcpy(decbuf+i,memctrl_patch_4x,sizeof(memctrl_patch_4x));
+			else if (clkspd == 5)
+				memcpy(decbuf+i,memctrl_patch_5x,sizeof(memctrl_patch_5x));
 			cnt++; p|=1;
 		}
 		else if(memcmp(decbuf+i,sysprot_ori,sizeof(sysprot_ori)) == 0)
